@@ -2,10 +2,10 @@
 
 ## Disposition (au-dessus de 1000 px, sans défilement)
 
-- **Barre du haut** : nom à gauche ; au centre : retour en direct (casque), mode clavier, **l'orbe** (enregistrer, universel), lecture/stop, temps, tempo (− bpm +), Taper, métronome ; à droite : ouvrir, enregistrer, exporter, annuler, rétablir (icônes).
+- **Barre du haut** : nom à gauche ; au centre : retour en direct (casque), mode clavier, **l'orbe** (enregistrer, universel), lecture/stop, temps, tempo (− bpm +), Taper, métronome ; à droite : nouveau morceau, ouvrir, enregistrer, exporter, annuler, rétablir (icônes).
 - **Colonne gauche** : les couches, en lignes (pastille de couleur, icône du type — trois notes en escalier = Instrument, onde = Audio —, nom, S / M / masquer, corbeille au survol, volume puis vumètre juste en dessous ; en tête, « Nouvelle couche · instrument » = aucune couche choisie). Le nom d'une couche est celui de son instrument, ou « Audio » ; le type n'est plus écrit, l'icône le dit.
 - **Centre** : barre d'outils (Hauteur : Grille / Aimants / Libre, Caler les hauteurs ; Temps : Grille, Déduire le BPM, découpage, Boucle, Couper au curseur, Caler le temps), puis le morceau (canvas).
-- **Bibliothèque** (D, ou le bouton à points dans l'îlot central de la barre du haut) : apparaît et disparaît en fondu rapide, au-dessus de tout, barre du haut comprise. Un fond sombre à demi transparent couvre tout l'écran ; par-dessus, avec des marges, un panneau sombre lui aussi à demi transparent porte les sons (des points, à la couleur de leur place ; pas de fond coloré). L'ensemble s'efface en vignette rectangulaire vers les bords de l'écran ; le fond du panneau s'efface lui aussi vers ses côtés (aucun bord net). Commandes en haut du panneau : titre, filtre, source (bouton lien : champ de source + Charger), « Tout charger » tant qu'il reste des sons non chargés, volume de l'écoute. Le chargement se voit comme un filet au-dessus de la carte. On en sort par D, Échap, ou un clic sur le fond autour du panneau. Dès qu'on emporte un son, elle devient presque invisible (son nom suit le pointeur, un cadre en pointillés montre exactement où tombera la prise) ; au lâcher, elle réapparaît.
+- **Bibliothèque** (D, ou le bouton à points dans l'îlot central de la barre du haut) : apparaît et disparaît en fondu rapide, au-dessus de tout, barre du haut comprise. Un fond sombre à demi transparent couvre tout l'écran ; par-dessus, avec des marges, un panneau sombre lui aussi à demi transparent porte les sons (des points, à la couleur de leur place ; pas de fond coloré). L'ensemble s'efface en vignette rectangulaire vers les bords de l'écran ; le fond du panneau s'efface lui aussi vers ses côtés (aucun bord net). Commandes en haut du panneau : titre, filtre par nom, ajouter une bibliothèque en ligne (bouton lien : champ d'adresse + Ajouter), importer des sons (fichiers → « Mes sons »), importer un dossier (→ une bibliothèque à son nom), « Tout charger » tant qu'il reste des sons non chargés dans les bibliothèques montrées, volume de l'écoute. Dessous, la rangée des bibliothèques : leurs noms, soulignés quand elles sont montrées, estompés quand elles sont cachées ; clic = montrer / cacher, double-clic = seulement celle-ci, croix au survol = retirer. Le chargement se voit comme un filet au-dessus de la carte. On en sort par D, Échap, ou un clic sur le fond autour du panneau. Dès qu'on emporte un son, elle devient presque invisible (son nom suit le pointeur, un cadre en pointillés montre exactement où tombera la prise) ; au lâcher, elle réapparaît.
 - **Tous les panneaux s'ajustent** : poignées entre les colonnes et entre les deux panneaux de droite, un filet apparaît au survol. Double-clic : taille d'origine ; au clavier, flèches (Maj : pas plus grand). Tailles gardées d'une séance à l'autre (stockage du navigateur). Le morceau garde toujours au moins 320 px.
 - **Colonne droite, deux panneaux** : en haut la couche (type en icônes : Instrument / Audio, choisi pour une nouvelle couche, affiché pour une couche existante ; liste simple des instruments sur deux colonnes, puis les instruments venus de la bibliothèque, avec leur couleur ; matière, expression, registre, effets, prises) ; en bas la sélection (relation de la note, fusion, ancrage, intensité, placement, écouter, supprimer).
 
@@ -52,7 +52,8 @@ Cadre aux bornes de la prise ; trait = hauteur quand il y en a une ; grains = te
 | Bibliothèque : clic molette maintenu, ou glisser dans le vide de la carte | se déplacer dans la carte ; double-clic dans le vide : tout voir ; clic sur le fond autour du panneau : fermer |
 | Bibliothèque : glisser un son sur la liste des instruments | il devient un instrument de la liste (joué à toutes les hauteurs) ; la liste reste visible pendant le glisser, même si une couche Audio est choisie ; croix au survol pour le retirer |
 | Bibliothèque : survol | écouter le son brut (sans réverbération ni compresseur) ; clic = choisir ; glisser vers le morceau = poser au pointeur dans le temps, **à sa hauteur exacte** (le morceau est un seul espace de fréquences) ; un son sans hauteur nette (frappe, bruit) est posé à sa résonance la plus forte ; sur la couche Audio choisie, sinon une nouvelle ; le cadre en pointillés montre exactement la prise à venir |
-| Déposer des fichiers/dossiers sur la bibliothèque | les ajouter |
+| Déposer des fichiers/dossiers sur la bibliothèque | les ajouter (un dossier = une bibliothèque à son nom, des fichiers = « Mes sons ») |
+| Bibliothèque : clic sur un nom de bibliothèque | la montrer / la cacher ; double-clic : seulement celle-ci |
 
 ## Clavier
 
@@ -63,7 +64,7 @@ Cadre aux bornes de la prise ; trait = hauteur quand il y en a une ; grains = te
 | Ctrl + Espace | jouer seulement la sélection |
 | Ctrl + Z, Ctrl + Maj + Z, Ctrl + Y | annuler, rétablir |
 | Ctrl + A / C / X / V / D | tout choisir, copier, couper, coller au curseur, dupliquer après |
-| Ctrl + S (Maj : sous un autre nom), Ctrl + O, Ctrl + E | enregistrer, ouvrir, exporter en WAV |
+| Ctrl + S (Maj : sous un autre nom), Ctrl + O, Ctrl + E | enregistrer (le morceau, ses bibliothèques et sons importés, la disposition et la vue), ouvrir, exporter en WAV |
 | Suppr / Retour arrière | supprimer la sélection |
 | D | ouvrir / fermer la bibliothèque (pas en mode clavier : D y joue une note) |
 | Échap | fermer la bibliothèque si elle est ouverte, sinon tout désélectionner |
@@ -82,6 +83,8 @@ Cadre aux bornes de la prise ; trait = hauteur quand il y en a une ; grains = te
 Mode clavier : chaque touche = un cran de la grille, dans l'ordre physique (codes `KeyZ…Slash`, puis `KeyA…Quote`, `KeyQ…BracketRight`, `Digit1…Equal`), à partir d'un do grave. Indépendant de la disposition (AZERTY / QWERTY), car basé sur `event.code`.
 
 ## Comportements à préserver
+
+- Le morceau en cours est copié dans le navigateur toutes les 5 s et repris au démarrage (« Repris ») : un Ctrl+R ne perd rien. « Nouveau morceau » se défait par Ctrl+Z.
 
 - Aucun bouton ne garde le focus après un clic de souris (sinon Espace/Entrée le réactivent). Les listes et curseurs se désactivent après usage.
 - Sélection de texte désactivée dans l'application (sauf champs de saisie).

@@ -300,6 +300,7 @@ input[type=range]:hover::-moz-range-thumb{box-shadow:0 0 0 3px color-mix(in srgb
       <button class="ibtn sm" id="libBtn" aria-pressed="false" aria-label="Bibliothèque de sons (D)" title="Bibliothèque de sons (D)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="16.5" r="2"/><circle cx="10.5" cy="8" r="2"/><circle cx="14" cy="14" r="2"/><circle cx="18.5" cy="6.5" r="2"/><circle cx="18" cy="17.5" r="1.4"/><circle cx="5.5" cy="7" r="1.4"/></svg></button>
     </div>
     <div class="group right">
+      <button class="ibtn sm" id="newBtn" aria-label="Nouveau morceau" title="Nouveau morceau (Ctrl+Z pour revenir au précédent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7A1.5 1.5 0 0 0 5.5 5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/></svg></button>
       <button class="ibtn sm" id="openBtn" aria-label="Ouvrir un morceau" title="Ouvrir un morceau (Ctrl+O)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2 2 0 0 1 5 5.5h4l2 2h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
       <button class="ibtn sm" id="saveBtn" aria-label="Enregistrer le morceau" title="Enregistrer le morceau (Ctrl+S, Ctrl+Maj+S pour un autre nom)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h11l3.5 3.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5z"/><path d="M7.5 3.5v5h8v-5"/><path d="M7.5 20.5v-6h9v6"/></svg></button>
       <button class="ibtn sm" id="exportBtn" disabled aria-label="Exporter en fichier audio" title="Exporter en fichier audio WAV (Ctrl+E)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4.5 14.5v4a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4"/></svg></button>
@@ -928,7 +929,7 @@ function sampleNote(L, n, t, cut, dur, dest){
   const clean = ctx.createGain(), ws = ctx.createWaveShaper(), dirt = ctx.createGain(); ws.curve = drive(18); ws.oversample = '2x';
   const dyn = ctx.createGain(), pn = ctx.createStereoPanner(), out = ctx.createGain(), send = ctx.createGain();
   lp.connect(hs); hs.connect(clean); hs.connect(ws); ws.connect(dirt); clean.connect(dyn); dirt.connect(dyn);
-  dyn.connect(pn); pn.connect(out); out.connect(dest); out.connect(send); send.connect(S.out.conv);
+  dyn.connect(pn); pn.connect(out); out.connect(dest); out.connect(send); send.connect(dest.amb || S.out.conv);
   pn.pan.value = n.pan || 0; out.gain.value = 0;
   const mix = x => x > 0.55 ? (x - 0.55)/0.45 : 0;
   clean.gain.value = 1 - 0.75*mix(x); dirt.gain.value = 0.55*mix(x); send.gain.value = y*1.3;
@@ -1006,9 +1007,12 @@ function layerGain(L){
     c.pan.connect(c.dry); c.dry.connect(S.out.dry);
     c.pan.connect(c.rev); c.rev.connect(S.out.conv);
     c.pan.connect(c.dsend); c.dsend.connect(c.delay); c.delay.connect(c.dlp); c.dlp.connect(c.fb); c.fb.connect(c.delay); c.dlp.connect(S.out.dry); c.dlp.connect(c.rev);
+    // l'ampleur propre à chaque note (réverbération) passe aussi par le volume et le muet de la couche
+    c.amb = ctx.createGain(); c.amb.connect(S.out.conv); c.in.amb = c.amb;
   }
   const silent = L.mute || (S.layers.some(l => l.solo) && !L.solo);
   c.in.gain.setTargetAtTime(silent ? 0 : (L.gain ?? 1), now, 0.02);
+  c.amb.gain.setTargetAtTime(silent ? 0 : (L.gain ?? 1), now, 0.02);
   c.pan.pan.setTargetAtTime(L.pan || 0, now, 0.02);
   c.lp.frequency.setTargetAtTime(20000*Math.pow(0.12, fx.dist), now, 0.03);
   c.dry.gain.setTargetAtTime(1 - 0.55*fx.dist, now, 0.03);
@@ -1070,19 +1074,27 @@ function stopPlay(){
   const t = S.ctx.currentTime; pl.hs.forEach(h => h.kill(t));
   S.playing = null; updateTransport();
 }
-function tone(f, g){
-  const ctx = S.ctx, o = ctx.createOscillator(); o.setPeriodicWave(S.W.prev); o.frequency.value = f;
-  const gg = ctx.createGain(); gg.gain.setValueAtTime(0, ctx.currentTime); gg.gain.linearRampToValueAtTime(g, ctx.currentTime + 0.04);
-  o.connect(gg); gg.connect(S.out.bus); o.start();
-  return { o, gg, stop(){ const t = ctx.currentTime; gg.gain.cancelScheduledValues(t); gg.gain.setTargetAtTime(0, t, 0.03); o.stop(t + 0.3); } };
+// entendre une note qu'on déplace, avec ses voisines : les vrais instruments, à leur intensité, au volume et
+// avec les effets de leur couche (comme le clic droit maintenu), pour que le volume ne change pas d'un geste à l'autre
+function voice(L, n, t){
+  if (SAMPLES[L.inst] && !S.buf[L.inst]){ load(L.inst); return null; }
+  return playNote(L, { c:n.c, v:n.v, det:null, dyn:null, pan:n.pan }, t, 0, 30, layerGain(L));
 }
 function previewStart(n){
   previewStop(); if (!S.ctx) return;
-  const others = overlapping(n.t, n.t + n.d, n);
-  S.preview = { others: others.map(o => tone(o.f, 0.13*o.w)), main: tone(hz(n.c), 0.2) };
+  const f = findItem(n.id); if (!f || f.L.kind === 'audio') return;
+  const t = S.ctx.currentTime + 0.01, others = [];
+  for (const L of S.layers){
+    if (L.mute || L.kind === 'audio') continue;
+    for (const o of L.notes) if (o !== n && o.t < n.t + n.d && o.t + o.d > n.t){ const h = voice(L, o, t); if (h) others.push(h); }
+  }
+  S.preview = { others, main: voice(f.L, n, t), c0:n.c };
 }
-function previewSet(c){ if (S.preview) S.preview.main.o.frequency.setTargetAtTime(hz(c), S.ctx.currentTime, 0.012); }
-function previewStop(){ if (!S.preview) return; S.preview.others.forEach(t => t.stop()); if (S.preview.main) S.preview.main.stop(); S.preview = null; }
+function previewSet(c){ const P = S.preview; if (P && P.main) P.main.retune(c, S.ctx.currentTime); }
+function previewStop(){
+  const P = S.preview; if (!P) return;
+  const t = S.ctx.currentTime; [...P.others, P.main].forEach(h => { if (h) h.release(t); }); S.preview = null;
+}
 function blip(n){ stopPlay(); previewStart(n); clearTimeout(S.blipT); S.blipT = setTimeout(previewStop, 380); }
 
 /* ================= Enregistrement ================= */
@@ -1369,19 +1381,21 @@ function b64ToBuf(s, sr){
   for (let i=0; i<a.length; i++) f[i] = a[i]/32767;
   const b = S.ctx.createBuffer(1, f.length, sr); b.copyToChannel(f, 0); return b;
 }
-async function projectJSON(){
+// bin : tableaux et octets bruts, sans base64 (copie de secours dans le navigateur, plus rapide et plus légère)
+async function projectData(bin){
   const used = new Set();
   const strip = L => ({ ...L, notes:L.notes.map(({ _fr, _h, ...n }) => n) });
   for (const L of S.layers){ for (const c of L.clips) used.add(c.buf); if (L.alts && L.kind === 'audio') L.alts.forEach(a => a.forEach(c => used.add(c.buf))); if (L.sample) used.add(L.sample); if (L.slots) Object.values(L.slots).forEach(id => used.add(id)); }
   for (const u of S.uinst) used.add(u.aid);
-  const audio = {}; for (const id of used){ const a = S.audio[id]; if (a) audio[id] = { sr:a.buf.sampleRate, pcm:pcmToB64(a.buf), name:a.name }; }
-  return JSON.stringify({ app:'souffle', version:2, tg:S.tg, tune:S.tune, loop:S.loop, loopOn:S.loopOn, metro:S.metro, cur:S.cur, lastInst:S.lastInst,
+  const audio = {}; for (const id of used){ const a = S.audio[id]; if (a) audio[id] = bin ? { sr:a.buf.sampleRate, f32:new Float32Array(a.buf.getChannelData(0)), name:a.name } : { sr:a.buf.sampleRate, pcm:pcmToB64(a.buf), name:a.name }; }
+  return { app:'souffle', version:2, tg:S.tg, tune:S.tune, loop:S.loop, loopOn:S.loopOn, metro:S.metro, cur:S.cur, lastInst:S.lastInst,
     layers:S.layers.map(strip), uinst:S.uinst, audio, ids:{ nid:S.nid, lid:S.lid, aid:S.aid },
-    libs: await libsJSON(), view: viewJSON() });
+    libs: await libsJSON(bin), view: viewJSON(), fileName: S.fileName || null };
 }
+async function projectJSON(){ const p = await projectData(false); delete p.fileName; return JSON.stringify(p); }
 // les bibliothèques : une bibliothèque en ligne se retrouve par son adresse ; une bibliothèque importée voyage
 // dans le morceau, avec les fichiers d'origine (le morceau s'ouvre ainsi sur un autre poste)
-async function libsJSON(){
+async function libsJSON(bin){
   const out = [];
   for (const b of S.libs){
     const o = { name:b.name, src:b.src, on:b.on, all:b.all };
@@ -1390,10 +1404,10 @@ async function libsJSON(){
       for (const it of S.lib){
         if (it.lib !== b.id || it.state === 'error') continue;
         let bytes = null, name = it.fname || it.name;
-        try { bytes = it.raw || await it.file.arrayBuffer(); } catch(e){}
+        try { bytes = it.raw || (it.raw = await it.file.arrayBuffer()); } catch(e){}
         // fichier d'origine introuvable (déplacé) : on garde le son décodé
         if (!bytes && it.mono){ bytes = await wav({ numberOfChannels:1, length:it.mono.length, sampleRate:it.sr, getChannelData:() => it.mono }).arrayBuffer(); name = it.name + '.wav'; }
-        if (bytes) o.files.push({ name, folder:it.folder, data:toB64(new Uint8Array(bytes)) });
+        if (bytes) o.files.push(bin ? { name, folder:it.folder, bytes } : { name, folder:it.folder, data:toB64(new Uint8Array(bytes)) });
       }
     }
     out.push(o);
@@ -1416,7 +1430,7 @@ function restoreLibs(list){
       keep.push(b);
     } else {
       const b = libSet({ name:o.name || LIB_MINE, on:o.on !== false }); keep.push(b);
-      libAddFiles((o.files || []).map(f => ({ b, name:f.name, folder:f.folder || '', raw:b64buf(f.data) })));
+      libAddFiles((o.files || []).map(f => ({ b, name:f.name, folder:f.folder || '', raw: f.bytes || b64buf(f.data) })));
     }
   }
   // le morceau décide : ce qui n'en fait pas partie est retiré
@@ -1470,10 +1484,18 @@ async function openProject(){
   }
   let p; try { p = JSON.parse(text); } catch(e){ say("Ce fichier n'est pas un morceau Souffle."); return; }
   if (!p || p.app !== 'souffle'){ say("Ce fichier n'est pas un morceau Souffle."); return; }
-  if (!S.ctx) await start();
+  if (!S.ctx) await start(true);
+  loadProject(p, fname);
+  say('');
+}
+function loadProject(p, fname){
   stopPlay();
   S.audio = {};
-  for (const [id, a] of Object.entries(p.audio || {})){ const buf = b64ToBuf(a.pcm, a.sr); S.audio[id] = { buf, trace: traceOf(buf.getChannelData(0), a.sr), name:a.name }; }
+  for (const [id, a] of Object.entries(p.audio || {})){
+    let buf;
+    if (a.f32){ buf = S.ctx.createBuffer(1, Math.max(1, a.f32.length), a.sr); buf.copyToChannel(a.f32, 0); } else buf = b64ToBuf(a.pcm, a.sr);
+    S.audio[id] = { buf, trace: traceOf(buf.getChannelData(0), a.sr), name:a.name };
+  }
   S.layers = p.layers; S.tg = p.tg; S.tune = p.tune; S.loop = p.loop; S.loopOn = p.loopOn; S.metro = p.metro; S.cur = p.cur;
   S.nid = p.ids.nid; S.lid = p.ids.lid; S.aid = p.ids.aid;
   // les kits n'existent plus : chaque coup devient une prise sonore, sur une couche Audio
@@ -1497,7 +1519,6 @@ async function openProject(){
   if (p.view) restoreView(p.view);
   refresh(); renderTools();
   if (!p.view) fitAll();
-  say('');
 }
 function wav(buf){
   const ch = buf.numberOfChannels, n = buf.length, sr = buf.sampleRate, out = new DataView(new ArrayBuffer(44 + n*ch*2));
@@ -1534,6 +1555,60 @@ async function exportWav(){
     }
   } catch(e){ if (e && e.name === 'AbortError'){ say(''); return; } }
   download(blob, 'morceau.wav'); say('Exporté : morceau.wav');
+}
+
+/* ================= Copie de secours : reprendre après un Ctrl+R ou un onglet fermé =================
+   Pas une vraie sauvegarde (elle reste dans ce navigateur) : toutes les quelques secondes, si quelque chose a changé,
+   le morceau entier est copié dans IndexedDB (localStorage, limité à ~5 Mo, ne tient pas les prises et les sons importés ;
+   il ne sert que de repli). Au démarrage, la copie est reprise. */
+const AUTO_MS = 5000;
+function idb(){
+  return S.idb || (S.idb = new Promise((res, rej) => {
+    const r = indexedDB.open('souffle', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('auto');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+}
+async function idbDo(mode, fn){
+  const db = await idb();
+  return new Promise((res, rej) => { const tx = db.transaction('auto', mode), r = fn(tx.objectStore('auto')); tx.oncomplete = () => res(r.result); tx.onerror = tx.onabort = () => rej(tx.error); });
+}
+// ce qui compte pour savoir si le morceau a changé (sans copier les sons à chaque fois)
+function autoSig(){
+  return snap() + JSON.stringify([S.tg, S.tune, S.loop, S.loopOn, S.metro, S.cur, S.uinst, viewJSON(), Object.keys(S.audio).length, S.fileName,
+    S.libs.map(b => [b.name, b.src, b.on, b.all, S.lib.filter(it => it.lib === b.id).length])]);
+}
+async function autoSave(){
+  if (!S.ctx || S.busy || S.rec || S.autoBusy || S.restoring || S.saving) return;
+  const sig = autoSig(); if (sig === S.autoSig) return;
+  S.autoBusy = true;
+  try {
+    // les données d'abord : une transaction IndexedDB se ferme si on attend autre chose pendant qu'elle est ouverte
+    const p = await projectData(true);
+    try { await idbDo('readwrite', st => st.put(p, 'song')); }
+    catch(e){ localStorage.setItem('souffle.auto', await projectJSON()); }
+    S.autoSig = sig;
+  } catch(e){ S.autoSig = sig; /* rien ne tient : on réessaiera au prochain changement */ }
+  finally { S.autoBusy = false; }
+}
+setInterval(() => { autoSave().catch(() => {}); }, AUTO_MS);
+document.addEventListener('visibilitychange', () => { if (document.hidden) autoSave().catch(() => {}); });
+async function autoLoad(){
+  try { const p = await idbDo('readonly', st => st.get('song')); if (p && p.app === 'souffle') return p; } catch(e){}
+  try { const t = localStorage.getItem('souffle.auto'); if (t) return JSON.parse(t); } catch(e){}
+  return null;
+}
+// nouveau morceau : le fond seul ; le morceau d'avant reste dans l'historique (Ctrl+Z)
+function fondLayer(){
+  return { id:++S.lid, kind:'notes', inst:'synth', x:0.12, y:0, expr:0, gain:1, fx:{ space:0.35, echo:0, dist:0 }, hue:225, mute:false, fond:true, clips:[],
+           notes:[{ id:++S.nid, t:0, d:16, c:cents(110), v:0.45, det:null, dyn:null }] };
+}
+function newProject(){
+  if (S.rec) return;
+  stopPlay(); pushUndo();
+  S.layers = [fondLayer()]; S.sel = new Set(); S.focus = null; selectLayers([]); setCursor(0); S.loopOn = false;
+  S.fileName = null; S.fileHandle = null;
+  refresh(); renderTools(); fitAll(); say('');
 }
 
 /* ================= Couches et sélection ================= */
@@ -2480,11 +2555,12 @@ $('#loopBtn').addEventListener('click', toggleLoop);
 $('#liveBtn').addEventListener('click', () => setLive(!S.live));
 $('#splitBtn').addEventListener('click', splitAtCursor);
 $('#openBtn').addEventListener('click', openProject);
+$('#newBtn').addEventListener('click', () => { if (S.ctx) newProject(); });
 $('#saveBtn').addEventListener('click', e => saveProject(e.shiftKey));
 $('#exportBtn').addEventListener('click', exportWav);
 $('#undoBtn').addEventListener('click', undo);
 $('#redoBtn').addEventListener('click', redo);
-$('#startBtn').addEventListener('click', start);
+$('#startBtn').addEventListener('click', () => start());
 document.querySelectorAll('#tuneSeg button').forEach(b => b.addEventListener('click', () => { S.tune = b.dataset.tune; S.landCache = null; renderTools(); }));
 $('#tgBtn').addEventListener('click', () => { S.tg.on = !S.tg.on; renderTools(); });
 $('#metroBtn').addEventListener('click', () => { S.metro = !S.metro; renderTools(); });
@@ -2561,10 +2637,17 @@ addEventListener('resize', () => applySizes(false));
 applySizes(false);
 
 /* ================= Démarrage ================= */
-async function start(){
+async function start(fresh){
   if (S.ctx) return;
   S.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint:'interactive' });
   buildOutput(); setSpace();
+  // reprendre là où on en était (sauf si on ouvre un fichier)
+  if (!fresh){
+    S.restoring = true;
+    const p = await autoLoad();
+    if (p) try { loadProject(p, p.fileName || null); say('Repris'); } catch(e){ console.error('Souffle : copie de secours illisible', e); }
+    S.restoring = false;
+  }
   try { if (S.ctx.state === 'suspended') await S.ctx.resume(); } catch(e){}
   $('#gate').hidden = true; $('#playBtn').disabled = false; $('#exportBtn').disabled = false; $('#keysBtn').disabled = false; $('#recBtn').disabled = false;
   updateTransport(); score.focus({ preventScroll:true });
@@ -2689,7 +2772,12 @@ function libAddFiles(list){
   S.lib.push(...items); libQueue(items); libCount(); renderLibSets();
   return items.length;
 }
-function libQueue(list){ for (const it of list) if (it.state === 'idle' && !it.queued){ it.queued = true; S.libQ.push(it); } libPump(); }
+// les sons de l'ordinateur passent devant les téléchargements : on les veut tout de suite
+function libQueue(list){
+  const loc = [];
+  for (const it of list) if (it.state === 'idle' && !it.queued){ it.queued = true; (it.local ? loc : S.libQ).push(it); }
+  S.libQ.unshift(...loc); libPump();
+}
 function libPump(){
   while (S.libBusy < 6 && S.libQ.length){
     const it = S.libQ.shift(); it.queued = false; if (it.state !== 'idle') continue;
@@ -3068,8 +3156,7 @@ function keyUp(e){
 document.addEventListener('keyup', e => { if (S.keys && S.ctx) keyUp(e); });
 $('#keysBtn').addEventListener('click', toggleKeys);
 
-S.layers.push({ id:++S.lid, kind:'notes', inst:'synth', x:0.12, y:0, expr:0, gain:1, fx:{ space:0.35, echo:0, dist:0 }, hue:225, mute:false, fond:true, clips:[],
-                notes:[{ id:++S.nid, t:0, d:16, c:cents(110), v:0.45, det:null, dyn:null }] });
+S.layers.push(fondLayer());
 readColors(); recomputeRel(); refreshPanel(); updateTransport(); renderTools(); tick();
 })();
 </script>

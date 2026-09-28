@@ -30,6 +30,11 @@ Chaque idée d'interface a été testée par le porteur du projet. Ne pas réint
 - **Couches en lignes** (pas de cartes).
 - **Prises sonores entrant dans les relations** par leurs hauteurs stables.
 - **Instruments échantillonnés** (Musyng Kite) : la synthèse maison était trop grossière.
+- **Plusieurs bibliothèques, filtrables** : une rangée de noms sous les commandes (filet = montrée), pas de pastilles ni de compteurs. Importer ses sons : fichiers → « Mes sons », dossier → bibliothèque à son nom. Les sons importés passent devant les téléchargements.
+- **Le fichier `.souffle` garde presque tout** : morceau, bibliothèques (en ligne par adresse, importées avec leurs fichiers d'origine, pour qu'un morceau s'ouvre sur un autre poste), filtre, zoom et volume de la bibliothèque, tailles des panneaux, vue, curseur, sélection, mode clavier. Ouvrir un morceau remplace les bibliothèques de la séance par les siennes. Pas l'historique d'annulation ni le retour en direct.
+- **Copie de secours automatique** dans le navigateur (IndexedDB, pas localStorage : trop petit pour les prises et les sons importés), reprise sans question au démarrage ; ce n'est pas une sauvegarde (Ctrl+S reste le seul fichier). D'où le bouton « Nouveau morceau », annulable.
+- **Déplacer une note s'entend avec les vrais instruments** (intensité, volume et effets des couches), comme le clic droit maintenu. Avant : une onde neutre à volume fixe, plus forte que le clic droit, et contraire au rejet des sons neutres.
+- **Couche muette = aucun son**, y compris la réverbération propre à chaque note (elle passait à côté du muet).
 - **Station de travail** : tout sur un écran, panneaux séparés, icônes pour les actions de fichier et d'historique.
 
 ## Rejeté (et pourquoi)

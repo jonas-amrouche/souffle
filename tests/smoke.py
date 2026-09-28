@@ -9,12 +9,22 @@ Variable d'environnement facultative : CHROMIUM_PATH (chemin d'un Chromium déj�
 Le micro factice de Chromium émet un bip intermittent : il produit des notes, ce qui suffit à tester les prises.
 L'état interne de l'application n'est pas exposé : on passe par le DOM et par les pixels des canvas.
 """
-import asyncio, os, sys, pathlib
+import asyncio, os, sys, pathlib, tempfile, wave, math, struct
 from playwright.async_api import async_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PAGE = (ROOT / 'souffle.html').as_uri()
 failures = []
+FIND_DOT = '''() => { const c = document.querySelector('#libCanvas'), g = c.getContext('2d'), d = devicePixelRatio || 1;
+    const im = g.getImageData(0, 0, c.width, c.height).data, top = document.querySelector('.libtop').getBoundingClientRect().bottom*d + 24*d;
+    for (let y = Math.round(top); y < c.height*0.87; y += 2) for (let x = Math.round(c.width*0.16); x < c.width*0.84; x += 2){
+      const o = (y*c.width + x)*4; if (im[o+3] > 200 && Math.max(im[o], im[o+1], im[o+2]) > 150) return [x/d, y/d]; }
+    return null; }'''
+
+def make_wav(path, f=220, dur=1.5, sr=22050):
+    with wave.open(str(path), 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        w.writeframes(b''.join(struct.pack('<h', int(12000*math.sin(2*math.pi*f*i/sr)*min(1, (sr*dur - i)/(sr*0.2)))) for i in range(int(sr*dur))))
 
 def check(cond, label):
     print(('  ok   ' if cond else '  ÉCHEC ') + label)
@@ -116,6 +126,27 @@ async def main(with_lib):
             await pg.keyboard.down(k); await pg.wait_for_timeout(120); await pg.keyboard.up(k); await pg.wait_for_timeout(120)
         await pg.keyboard.press('Enter'); await pg.wait_for_timeout(600); await pg.click('#keysBtn')
 
+        # importer ses propres sons : une bibliothèque « Mes sons », filtrable
+        tmp = pathlib.Path(tempfile.mkdtemp()); make_wav(tmp / 'la grave.wav', f=1800)
+        await pg.set_input_files('#libFileIn', str(tmp / 'la grave.wav')); await pg.wait_for_timeout(300)
+        sets = lambda: pg.locator('#libSets .lsn').all_text_contents()
+        check('Mes sons' in await sets(), f'importer un son crée la bibliothèque « Mes sons » ({await sets()})')
+        await pg.keyboard.press('d'); await pg.wait_for_timeout(200)
+        mine = pg.locator('#libSets .lsn', has_text='Mes sons')
+        await mine.click(); await mine.click(); await pg.wait_for_timeout(200)
+        pressed = lambda: pg.evaluate("[...document.querySelectorAll('#libSets .lsn')].map(b => b.textContent + ':' + b.getAttribute('aria-pressed'))")
+        check(await pressed() == ['Mes sons:true'] or all(x.endswith(':false') for x in (await pressed()) if not x.startswith('Mes sons')), f'double-clic : seulement cette bibliothèque ({await pressed()})')
+        dot = None
+        for _ in range(20):
+            await pg.wait_for_timeout(300); dot = await pg.evaluate(FIND_DOT)
+            if dot: break
+        check(dot is not None, 'le son importé apparaît sur la carte')
+        await pg.wait_for_timeout(500); await mine.click(); await pg.wait_for_timeout(200)
+        check(await pg.evaluate(FIND_DOT) is None, 'cacher la bibliothèque cache ses sons')
+        await mine.click(); await pg.wait_for_timeout(200)
+        await pg.keyboard.press('Escape'); await pg.wait_for_timeout(200)
+        lw = (await pg.locator('aside[aria-label="Couches"]').bounding_box())['width']
+
         # fichiers
         async with pg.expect_download() as d1: await pg.keyboard.press('Control+s')
         saved = await (await d1.value).path()
@@ -129,15 +160,23 @@ async def main(with_lib):
         async with pg.expect_file_chooser() as fc: await pg.click('#openBtn')
         await (await fc.value).set_files(saved); await pg.wait_for_timeout(1200)
         check(await tracks() == before, f'Ouvrir restitue les mêmes couches ({before})')
+        # le morceau garde aussi les bibliothèques, leurs sons importés et la disposition, même sur un autre poste
+        await pg.evaluate('localStorage.clear()'); await pg.reload(); await pg.click('#startBtn'); await pg.wait_for_timeout(1200)
+        async with pg.expect_file_chooser() as fc: await pg.click('#openBtn')
+        await (await fc.value).set_files(saved); await pg.wait_for_timeout(1500)
+        check(abs((await pg.locator('aside[aria-label="Couches"]').bounding_box())['width'] - lw) < 3, 'Ouvrir restitue la largeur des panneaux')
+        check('Mes sons:true' in await pressed(), f'Ouvrir restitue les bibliothèques et leur filtre ({await pressed()})')
+        await pg.keyboard.press('d'); dot = None
+        for _ in range(20):
+            await pg.wait_for_timeout(300); dot = await pg.evaluate(FIND_DOT)
+            if dot: break
+        check(dot is not None, 'les sons importés voyagent dans le fichier du morceau')
+        await pg.keyboard.press('Escape')
 
         if with_lib:
             await pg.keyboard.press('d'); await pg.wait_for_timeout(300)
             # attendre que des sons soient analysés : des points bien lumineux apparaissent sur la carte
-            find_dot = '''() => { const c = document.querySelector('#libCanvas'), g = c.getContext('2d'), d = devicePixelRatio || 1;
-                const im = g.getImageData(0, 0, c.width, c.height).data, top = document.querySelector('.libtop').getBoundingClientRect().bottom*d + 24*d;
-                for (let y = Math.round(top); y < c.height*0.87; y += 2) for (let x = Math.round(c.width*0.16); x < c.width*0.84; x += 2){
-                  const o = (y*c.width + x)*4; if (im[o+3] > 200 && Math.max(im[o], im[o+1], im[o+2]) > 150) return [x/d, y/d]; }
-                return null; }'''
+            find_dot = FIND_DOT
             dot = None
             for _ in range(60):
                 await pg.wait_for_timeout(1000)
@@ -158,6 +197,19 @@ async def main(with_lib):
                 check(await pg.evaluate("document.querySelector('#lib').classList.contains('dragging')"), 'la bibliothèque s’efface pendant le glisser')
                 await pg.mouse.up(); await pg.wait_for_timeout(200)
                 check(len(await tracks()) == t0 + 1 and await pg.is_visible('#libCanvas'), 'glisser un son sur le morceau le pose, puis la bibliothèque revient')
+
+        # copie de secours : un Ctrl+R ne perd rien
+        await pg.keyboard.press('Escape')
+        before = await tracks(); sets0 = await pressed()
+        await pg.wait_for_timeout(6500)
+        await pg.reload(); await pg.click('#startBtn'); await pg.wait_for_timeout(1500)
+        check(await tracks() == before, f'après Ctrl+R, le morceau est repris ({await tracks()})')
+        check(await pressed() == sets0, f'après Ctrl+R, les bibliothèques sont reprises ({await pressed()})')
+        # nouveau morceau, et retour au précédent
+        await pg.click('#newBtn'); await pg.wait_for_timeout(200)
+        check(await tracks() == ['Fond'], f'Nouveau morceau : le fond seul ({await tracks()})')
+        await pg.keyboard.press('Control+z'); await pg.wait_for_timeout(200)
+        check(await tracks() == before, 'Ctrl+Z retrouve le morceau précédent')
 
         check(not errs, f'aucune erreur JavaScript ({errs[:3]})')
         await b.close()

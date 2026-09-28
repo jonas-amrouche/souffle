@@ -1,5 +1,7 @@
 # Feuille de route
 
+**v1 arrêtée le 28/09/2026** (bibliothèques multiples et import local, fichier complet, copie de secours). Tout ce qui suit relève de la v2 ; priorités proposées : stéréo des sons importés, instruments tirés d'un son (plusieurs échantillons, boucle pour tenir), prises audio qui suivent le BPM, n'embarquer que les sons utilisés, puis le temps relationnel.
+
 ## Dette technique (à traiter tôt)
 
 1. **Découper `souffle.html`.** 2300 lignes de script + 6,9 Mo d'échantillons dans un seul fichier. Proposition : `src/*.js` (une section = un fichier) + `samples/` (fichiers MP3), et un petit script d'assemblage sans dépendance qui produit `dist/souffle.html` autonome. Attention : `file://` interdit les modules ES ; soit on assemble, soit on sert en local (`python -m http.server`). Garder un livrable en un seul fichier, qui fonctionne en double-cliquant.
@@ -27,7 +29,11 @@ La friction et l'ancrage ne regardent que la **verticale** (ce qui sonne en mêm
 
 ## Limites connues
 
-- Pas de sauvegarde automatique (Ctrl + S uniquement).
+- Un morceau qui importe de gros dossiers de sons devient lourd (fichiers d'origine en base64, +33 %). Piste : n'embarquer que les sons utilisés, ou proposer un choix à l'enregistrement.
+- Les bibliothèques en ligne ne sont pas embarquées : sans réseau, seuls les sons déjà posés dans le morceau (ou devenus instruments) restent disponibles.
+
+- La copie de secours reste dans le navigateur (et sur ce poste) : ce n'est pas une sauvegarde. Vider les données du site l'efface.
+- Couper le son d'une couche pendant la lecture laisse finir la queue d'écho ou de réverbération déjà lancée (naturel, à confirmer).
 - Après une prise, la lecture repart d'elle-même : le premier Espace l'arrête au lieu de la lancer (comportement existant, à confirmer avec le porteur).
 - Au départ, la bibliothèque ne charge que les trois premiers sons de chaque dossier de la source (« Tout charger » pour le reste).
 - **Ctrl + O** : certains Chromium refusent d'ouvrir le sélecteur de fichier depuis ce raccourci (c'est aussi le raccourci d'ouverture du navigateur, et il n'est pas toujours compté comme geste de l'utilisateur). Le bouton « Ouvrir » fonctionne toujours. À vérifier dans le Firefox du porteur ; piste : un `<input type="file">` permanent dans la page, ou `showOpenFilePicker` quand il existe.
