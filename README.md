@@ -9,3 +9,4 @@ Ouvrir `souffle.html` dans Chrome ou Edge, cliquer « Commencer », autoriser le
 - Instruments intégrés : `python3 tools/fetch_instruments.py`.
 
 Sons des instruments : banque Musyng Kite (CC BY-SA 3.0), via gleitz/midi-js-soundfonts. Bibliothèque par défaut : tidalcycles/dirt-samples.
+ 
